@@ -1,0 +1,53 @@
+name: iphone-shot
+# Real iPhone Safari screenshots of web pages: the iOS Simulator on a GitHub Mac, so Apple's own fonts
+# (PingFang for Chinese, SF for the system) and Safari's own rendering, which Windows cannot reproduce.
+on:
+  workflow_dispatch:
+    inputs:
+      urls: {description: "Space-separated URLs, each opened in Safari in turn", required: true}
+      device: {description: "Simulator device", default: "iPhone 15"}
+      frames: {description: "Screenshots per URL", default: "24"}
+      every: {description: "Seconds between screenshots", default: "0.4"}
+jobs:
+  shot:
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      URLS: ${{ inputs.urls }}
+      DEVICE: ${{ inputs.device }}
+      FRAMES: ${{ inputs.frames }}
+      EVERY: ${{ inputs.every }}
+    steps:
+      - name: Boot the simulator
+        run: |
+          RT=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x['platform']=='iOS' and x['isAvailable']]; print(r[-1]['identifier'])")
+          echo "runtime $RT"
+          UDID=$(xcrun simctl create shot "$DEVICE" "$RT")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+      - name: Warm up Safari
+        run: |
+          xcrun simctl openurl "$UDID" "https://example.com"
+          sleep 25
+          mkdir -p out
+          xcrun simctl io "$UDID" screenshot out/warm.png
+      - name: Screenshots
+        run: |
+          set -f
+          i=0
+          for u in $URLS; do
+            i=$((i+1))
+            xcrun simctl openurl "$UDID" "$u"
+            for f in $(seq -w 1 "$FRAMES"); do
+              xcrun simctl io "$UDID" screenshot "out/u${i}_${f}.png" >/dev/null 2>&1
+              sleep "$EVERY"
+            done
+          done
+          ls out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: out/
+          retention-days: 3
