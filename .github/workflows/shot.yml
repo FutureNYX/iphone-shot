@@ -4,7 +4,7 @@ name: iphone-shot
 on:
   workflow_dispatch:
     inputs:
-      urls: {description: "Space-separated URLs, each opened in Safari in turn", required: true}
+      urls: {description: "Space-separated URLs, each opened in Safari in turn (empty = the SHOT_URLS secret, kept out of the logs)", default: ""}
       device: {description: "Simulator device", default: "iPhone 15"}
       frames: {description: "Screenshots per URL", default: "24"}
       every: {description: "Seconds between screenshots", default: "0.4"}
@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     env:
-      URLS: ${{ inputs.urls }}
+      URLS: ${{ inputs.urls || secrets.SHOT_URLS }}
       DEVICE: ${{ inputs.device }}
       FRAMES: ${{ inputs.frames }}
       EVERY: ${{ inputs.every }}
@@ -50,4 +50,4 @@ jobs:
         with:
           name: shots
           path: out/
-          retention-days: 3
+          retention-days: 1
